@@ -1,0 +1,92 @@
+#include <iostream>
+#include <omp.h> // Still used for the timer
+
+#define N 5
+#define FS 38
+using namespace std;
+
+class node {
+public:
+    int data;
+    int fibval;
+    node* next;
+
+    node(int val) : data(val), fibval(0), next(nullptr) {}
+};
+
+int fib(int n) {
+    if (n < 2) return n;
+    return fib(n - 1) + fib(n - 2);
+}
+
+void processwork(node* p) {
+    if (p == nullptr) return;
+    p->fibval = fib(p->data);
+}
+
+class linked_list {
+public:
+    node* head;
+
+    linked_list() : head(nullptr) {}
+
+    void init_list() {
+        // Create the first node
+        head = new node(FS);
+        node* current = head;
+
+        // Create the rest of the nodes and link them
+        for (int i = 1; i < N; i++) {
+            node* newNode = new node(FS + i);
+            current->next = newNode;
+            current = newNode;
+        }
+    }
+
+    void print_and_free() {
+        node* current = head;
+        while (current != nullptr) {
+            node* nextNode = current->next;
+            cout << "Input: " << current->data << " \t Fib Result: " << current->fibval << endl;
+
+            // In C++, use delete for memory allocated with new
+            delete current;
+            current = nextNode;
+        }
+        head = nullptr;
+    }
+};
+
+
+int main() {
+    cout << "Process linked list (Serial)\n" << endl;
+
+    linked_list lis;
+    lis.init_list();
+
+    // Start Timer
+    double start = omp_get_wtime();
+
+    // Process the list sequentially
+    
+#pragma omp parallel 
+    {
+#pragma omp single
+        {
+            node* p = lis.head;
+            while (p != nullptr) {
+#pragma omp task firstprivate(p)
+                { processwork(p); }
+                p = p->next;
+            }
+        }
+    }
+    // End Timer
+    double end = omp_get_wtime();
+
+    lis.print_and_free();
+
+    cout << "\nCompute Time: " << (end - start) << " seconds" << endl;
+
+    return 0;
+}

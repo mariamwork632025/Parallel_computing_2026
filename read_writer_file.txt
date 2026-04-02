@@ -1,0 +1,88 @@
+#include <iostream>
+#include <fstream>
+#include <queue>
+#include <string>
+#include <omp.h>
+
+using namespace std;
+
+omp_lock_t queueLock;
+
+queue<string> buffer;
+
+ifstream inputFile("multiple_processes.txt");
+ofstream outputFile("output.txt");
+
+bool finished = false;
+
+void reader()
+{
+    cout << omp_get_thread_num() << endl;
+    string line;
+
+    while (true)
+    {
+        omp_set_lock(&queueLock);
+
+        if (!getline(inputFile, line))
+        {
+            finished = true;
+            omp_unset_lock(&queueLock);
+            break;
+        }
+
+        buffer.push(line);
+
+        omp_unset_lock(&queueLock);
+    }
+}
+
+void writer()
+{
+    cout << omp_get_thread_num() << endl;
+    while (true)
+    {
+        omp_set_lock(&queueLock);
+
+        if (!buffer.empty())
+        {
+            string data = buffer.front();
+            buffer.pop();
+            outputFile << data << endl;
+        }
+        else if (finished)
+        {
+            omp_unset_lock(&queueLock);
+            break;
+        }
+
+        omp_unset_lock(&queueLock);
+    }
+}
+
+int main()
+{
+    omp_init_lock(&queueLock);
+
+#pragma omp parallel sections
+    {
+#pragma omp section
+        reader();
+
+#pragma omp section
+        reader();
+
+#pragma omp section
+        writer();
+
+#pragma omp section
+        writer();
+    }
+
+    omp_destroy_lock(&queueLock);
+
+    inputFile.close();
+    outputFile.close();
+
+    return 0;
+}
